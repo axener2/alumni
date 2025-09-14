@@ -70,35 +70,44 @@
         });
       }
 
-      // Load messages from server (same origin via google.script.run)
       function load(){
-        google.script.run.withSuccessHandler(function(items){
-          renderList(items || []);
-          setSync();
-        }).getMessages();
+        google.script.run
+          .withSuccessHandler(items => { renderList(items||[]); setSync(); })
+          .getMessages();
       }
 
-      document.getElementById('postBtn').addEventListener('click', function(){
+      document.getElementById('postBtn').addEventListener('click', () => {
         const el = document.getElementById('message');
         const message = el.value.trim();
         if(!message){ return note('Message is empty.'); }
         if(message.length > 2000){ return note('Message too long (2000).'); }
         note('Posting…');
 
-        // Post via server-side (no CORS)
-        google.script.run.withSuccessHandler(function(res){
-          // Optimistic clear & update
-          el.value = '';
-          note('Posted!');
-          load(); // refresh immediately after posting
-        }).withFailureHandler(function(err){
-          note('Failed: ' + (err && err.message ? err.message : 'error'));
-        }).postMessage(message);
+        // Show instantly (optimistic append)
+        const list = document.getElementById('list');
+        if(list.children.length === 1 && list.children[0].classList.contains('muted')){ list.innerHTML=''; }
+        const card = document.createElement('div');
+        card.className = 'card';
+        const msg = document.createElement('div');
+        msg.className = 'msg';
+        msg.textContent = message;
+        const ts = document.createElement('div');
+        ts.className = 'ts';
+        ts.textContent = 'Just now…';
+        card.appendChild(msg);
+        card.appendChild(ts);
+        list.appendChild(card);
+        el.value = '';
+
+        // Send to server (same origin)
+        google.script.run
+          .withSuccessHandler(() => { note('Posted!'); load(); })
+          .withFailureHandler(err => { note('Failed: ' + (err?.message || 'error')); })
+          .postMessage(message);
       });
 
-      // Initial load + auto refresh every 6 seconds
-      load();
-      setInterval(load, 6000);
+      load();                   // initial
+      setInterval(load, 6000);  // auto-refresh
     </script>
   </body>
 </html>
