@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Alumni Anonymous Thread</title>
+<title>Alumni Anonymous Thread (Project Abandoned 😊)</title>
 <meta name="description" content="Temporary, anonymous, one-thread wall." />
 <style>
   :root{--bg:#0f172a;--panel:#111827;--text:#e5e7eb;--muted:#94a3b8;--brand:#14b8a6;--err:#f87171;}
@@ -30,7 +30,7 @@
 <body>
 <div class="wrap">
   <div class="bar">
-    <h1>Alumni Anonymous Thread</h1>
+    <h1>Alumni Anonymous Thread <span style="color:#94a3b8;font-weight:normal">(Project Abandoned)</span></h1>
     <div class="top-actions">
       <span id="adminToggle" class="link">Admin</span>
       <span class="muted">Live</span>
@@ -65,19 +65,16 @@
     measurementId: "G-YEVPB69BT0"
   };
 
-  // Imports
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
   import {
     getDatabase, ref, push, serverTimestamp,
     query, orderByChild, startAt, onChildAdded, onChildRemoved, remove
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
-  // Init
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
   const THREAD = "anonThread/messages";
 
-  // State & elements
   let adminMode = false;
   const ADMIN_PIN = "4320";
   const seen = new Set();
@@ -91,7 +88,6 @@
 
   const note = (t, err=false) => { statusEl.textContent = t || ''; statusEl.className = err ? 'error' : 'muted'; };
 
-  // Admin toggle
   document.getElementById('adminToggle').addEventListener('click', () => {
     if (adminMode) { adminMode = false; renderAdminButtons(); return; }
     const pin = prompt('Enter admin PIN:');
@@ -106,12 +102,10 @@
     });
   }
 
-  // Counter
   msgEl.addEventListener('input', () => {
     charCount.textContent = `${msgEl.value.length}/2000`;
   });
 
-  // Render single message (NEWEST FIRST: prepend)
   function renderCard(key, message, ts){
     if (seen.has(key)) return;
     seen.add(key);
@@ -150,16 +144,13 @@
     card.appendChild(m);
     card.appendChild(row);
 
-    // Prepend (newest on top)
     if (listEl.firstChild) listEl.insertBefore(card, listEl.firstChild);
     else listEl.appendChild(card);
 
     nodes.set(key, card);
   }
 
-  // Subscribe to last 4 hours; avoid duplicates; handle deletions
   const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
-
   function subscribe(){
     listEl.innerHTML = '';
     seen.clear(); nodes.clear();
@@ -182,7 +173,6 @@
     });
   }
 
-  // Post (no optimistic echo to prevent duplicates)
   postBtn.addEventListener('click', async () => {
     const message = msgEl.value.trim();
     if (!message) return note('Message is empty.', true);
