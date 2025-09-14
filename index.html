@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Alumni Anonymous Thread</title>
     <style>
-      :root{--bg:#0f172a;--panel:#111827;--text:#e5e7eb;--muted:#94a3b8;--brand:#14b8a6;}
+      :root{--bg:#0f172a;--panel:#111827;--text:#e5e7eb;--muted:#94a3b8;--brand:#14b8a6;--err:#f87171;}
       *{box-sizing:border-box}
       body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Inter,-apple-system}
       .wrap{max-width:720px;margin:24px auto;padding:0 16px}
@@ -14,6 +14,7 @@
       textarea{width:100%;min-height:96px;border:1px solid #1f2937;background:#0b1220;color:var(--text);border-radius:8px;padding:12px;outline:none}
       button{background:var(--brand);color:#062925;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
       .muted{color:var(--muted);font-size:12px}
+      .error{color:var(--err)}
       .msg{white-space:pre-wrap;word-wrap:break-word}
       .ts{font-size:12px;color:var(--muted);margin-top:6px}
       .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
@@ -41,7 +42,13 @@
     </div>
 
     <script>
-      function note(t){ document.getElementById('status').textContent = t; }
+      const API = "https://script.google.com/macros/s/AKfycby3IxJB11gomfsA2MQ-BFM3bJuesbhv7SQLBI-RHOpxZmOb0W5U6qkq8ddpmIqVTh4mow/exec";
+
+      function note(t, isErr=false){
+        const s = document.getElementById('status');
+        s.textContent = t || '';
+        s.className = isErr ? 'error' : 'muted';
+      }
       function setSync(){ document.getElementById('lastSync').textContent = 'Updated ' + new Date().toLocaleTimeString(); }
 
       function renderList(items){
@@ -70,20 +77,23 @@
         });
       }
 
-      function load(){
-        google.script.run
-          .withSuccessHandler(items => { renderList(items||[]); setSync(); })
-          .getMessages();
+      async function load(){
+        try{
+          const res = await fetch(API + "?action=get");
+          const data = await res.json();
+          if(data && data.ok){ renderList(data.data); setSync(); }
+          else{ note('Load failed', true); }
+        }catch(e){ note('Load error', true); }
       }
 
-      document.getElementById('postBtn').addEventListener('click', () => {
+      document.getElementById('postBtn').addEventListener('click', async () => {
         const el = document.getElementById('message');
         const message = el.value.trim();
-        if(!message){ return note('Message is empty.'); }
-        if(message.length > 2000){ return note('Message too long (2000).'); }
+        if(!message){ return note('Message is empty.', true); }
+        if(message.length > 2000){ return note('Message too long (2000).', true); }
         note('Posting…');
 
-        // Show instantly (optimistic append)
+        // Optimistic append
         const list = document.getElementById('list');
         if(list.children.length === 1 && list.children[0].classList.contains('muted')){ list.innerHTML=''; }
         const card = document.createElement('div');
@@ -99,11 +109,16 @@
         list.appendChild(card);
         el.value = '';
 
-        // Send to server (same origin)
-        google.script.run
-          .withSuccessHandler(() => { note('Posted!'); load(); })
-          .withFailureHandler(err => { note('Failed: ' + (err?.message || 'error')); })
-          .postMessage(message);
+        try{
+          const res = await fetch(API, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "action=post&message=" + encodeURIComponent(message)
+          });
+          const data = await res.json();
+          if(data.ok){ note('Posted!'); load(); }
+          else{ note('Failed to post', true); }
+        }catch(e){ note('Error posting', true); }
       });
 
       load();                   // initial
