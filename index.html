@@ -1,8 +1,130 @@
 <!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Alumni Anonymous Thread</title>
-<meta http-equiv="refresh" content="0; url=https://script.google.com/macros/s/AKfycby3IxJB11gomfsA2MQ-BFM3bJuesbhv7SQLBI-RHOpxZmOb0W5U6qkq8ddpmIqVTh4mow/exec">
-<p>Redirecting to the thread… If you aren't redirected automatically,
-   <a href="https://script.google.com/macros/s/AKfycby3IxJB11gomfsA2MQ-BFM3bJuesbhv7SQLBI-RHOpxZmOb0W5U6qkq8ddpmIqVTh4mow/exec">click here</a>.
-</p>
+<meta name="description" content="Temporary, anonymous, one-thread wall." />
+<style>
+  :root{--bg:#0f172a;--panel:#111827;--text:#e5e7eb;--muted:#94a3b8;--brand:#14b8a6;--err:#f87171;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Inter,-apple-system}
+  .wrap{max-width:720px;margin:24px auto;padding:0 16px}
+  h1{font-size:20px;margin:0 0 10px}
+  .card{background:var(--panel);border-radius:12px;padding:16px;margin:12px 0}
+  textarea{width:100%;min-height:96px;border:1px solid #1f2937;background:#0b1220;color:var(--text);border-radius:8px;padding:12px;outline:none}
+  button{background:var(--brand);color:#062925;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+  .muted{color:var(--muted);font-size:12px}
+  .error{color:var(--err)}
+  .msg{white-space:pre-wrap;word-wrap:break-word}
+  .ts{font-size:12px;color:var(--muted);margin-top:6px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .footer{margin:18px 0 12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+    <h1>Alumni Anonymous Thread</h1>
+    <span class="muted" id="live">Live</span>
+  </div>
+
+  <div class="card">
+    <textarea id="message" placeholder="Write your message… (no names/contacts/photos)"></textarea>
+    <div class="row">
+      <button id="postBtn">Post Anonymously</button>
+      <span id="status" class="muted"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="footer muted">This wall shows only the last 4 hours. Be respectful.</div>
+</div>
+
+<!-- Firebase v12 (modular) -->
+<script type="module">
+  // 1) Your Firebase config (from console)
+  const firebaseConfig = {
+    apiKey: "AIzaSyArKL5zbf7aRd8wzbUae6xWbO0Slw6Yc3U",
+    authDomain: "alumnichat-a0b1f.firebaseapp.com",
+    databaseURL: "https://alumnichat-a0b1f-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "alumnichat-a0b1f",
+    storageBucket: "alumnichat-a0b1f.firebasestorage.app",
+    messagingSenderId: "106010343058",
+    appId: "1:106010343058:web:ea9ada621c7316f718184b",
+    measurementId: "G-YEVPB69BT0"
+  };
+
+  // 2) Imports
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+  // Analytics not required; you can remove if you like
+  // import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-analytics.js";
+  import {
+    getDatabase, ref, push, serverTimestamp,
+    query, orderByChild, startAt, onChildAdded
+  } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+
+  // 3) Init app + db
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+  const THREAD = "anonThread/messages"; // one shared thread path
+
+  // UI helpers
+  const statusEl = document.getElementById('status');
+  const listEl   = document.getElementById('list');
+  const note = (t, err=false) => { statusEl.textContent = t || ''; statusEl.className = err ? 'error' : 'muted'; };
+
+  function addCard({message, ts}) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const msg = document.createElement('div');
+    msg.className = 'msg';
+    msg.textContent = message;
+    const time = document.createElement('div');
+    time.className = 'ts';
+    time.textContent = new Date(ts).toLocaleString();
+    card.appendChild(msg);
+    card.appendChild(time);
+    listEl.appendChild(card);
+  }
+
+  // Real-time subscription: only last 4 hours
+  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+  function subscribe() {
+    const since = Date.now() - FOUR_HOURS_MS;
+    // Clear list before (re)subscribing
+    listEl.innerHTML = '';
+    const q = query(ref(db, THREAD), orderByChild("ts"), startAt(since));
+    onChildAdded(q, (snap) => {
+      const v = snap.val();
+      if (!v || !v.message) return;
+      // If ts is a serverTimestamp, Firebase will send the resolved number on the next event
+      addCard({ message: v.message, ts: v.ts || Date.now() });
+    });
+  }
+
+  // Post message (optimistic + server timestamp)
+  document.getElementById('postBtn').addEventListener('click', async () => {
+    const textarea = document.getElementById('message');
+    const message = textarea.value.trim();
+    if (!message) return note('Message is empty.', true);
+    if (message.length > 2000) return note('Message too long (2000).', true);
+
+    // Optimistic add so users see it instantly
+    addCard({ message, ts: Date.now() });
+    textarea.value = '';
+    note('Posting…');
+
+    try {
+      await push(ref(db, THREAD), { message, ts: serverTimestamp() });
+      note('Posted!');
+    } catch (e) {
+      note('Error posting.', true);
+    }
+  });
+
+  subscribe(); // go live
+</script>
+</body>
+</html>
