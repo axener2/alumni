@@ -67,7 +67,7 @@
 
 <script>
 // ======= CONFIG =======
-const API = 'https://script.google.com/macros/s/AKfycbxarUHfdXsyrUdzJGhUXDG3hrdxfgrC0FVI8CBUHHB4VTpRCvRDIOfiFlstoVIvtzm8VQ/exec'; // Replace after Apps Script deploy
+const API = 'https://script.google.com/macros/s/AKfycbw1Fg0vyZm_G-y38S1qXpHkcLVw_dTqVP_rupPXBIHjR7LrEbnn9lqzt1e1NndJ92Y72Q/exec'; // Replace after Apps Script deploy
 // ======================
 
 
@@ -118,12 +118,13 @@ load();
 document.getElementById('refreshBtn').addEventListener('click', load);
 document.getElementById('hours').addEventListener('change', load);
 
+
 document.getElementById('postBtn').addEventListener('click', async ()=>{
-  const message = document.getElementById('message').value.trim();
-  const sum = Number(document.getElementById('sum').value);
+  const messageEl = document.getElementById('message');
+  const list = document.getElementById('list');
+  const message = messageEl.value.trim();
   if(!message){ return note('Message is empty.'); }
   if(message.length > 2000){ return note('Message too long (2000 char max).'); }
-  
   note('Posting…');
   try{
     const res = await fetch(API, {
@@ -131,6 +132,36 @@ document.getElementById('postBtn').addEventListener('click', async ()=>{
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ message })
     });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error||'Post failed');
+
+    // Optimistic add: show immediately
+    // Remove "No messages..." placeholder if present
+    if(list.children.length === 1 && list.children[0].classList.contains('muted')){
+      list.innerHTML = '';
+    }
+    const card = document.createElement('div');
+    card.className='card';
+    const msg = document.createElement('div');
+    msg.className='msg';
+    msg.textContent = message;
+    const ts = document.createElement('div');
+    ts.className='ts';
+    ts.textContent = new Date().toLocaleString();
+    card.appendChild(msg);
+    card.appendChild(ts);
+    list.appendChild(card);
+
+    // Clear input and status
+    messageEl.value = '';
+    note('Posted!');
+
+    // (Optional) Scroll to the newest message
+    card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }catch(e){
+    note('Failed to post.');
+  }
+});
     const data = await res.json();
     if(!data.ok) throw new Error(data.error||'Post failed');
     document.getElementById('message').value = '';
