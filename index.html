@@ -1,179 +1,104 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Alumni Anonymous Thread (Ephemeral)</title>
-<meta name="description" content="A single-thread, anonymous message wall for alumni. No auth. Ephemeral (last few hours only).">
-<style>
-  :root{
-    --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8; --brand:#14b8a6; --danger:#ef4444;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Inter,-apple-system}
-  .wrap{max-width:720px;margin:24px auto;padding:0 16px}
-  h1{font-size:20px;margin:0 0 10px}
-  .card{background:var(--panel);border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 0 rgba(255,255,255,0.03) inset}
-  textarea{width:100%;min-height:96px;border:1px solid #1f2937;background:#0b1220;color:var(--text);
-    border-radius:8px;padding:12px;outline:none}
-  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
-  input[type=number]{width:80px;border:1px solid #1f2937;background:#0b1220;color:var(--text);
-    border-radius:8px;padding:8px}
-  button{background:var(--brand);color:#062925;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
-  button.secondary{background:#243041;color:var(--text);}
-  .muted{color:var(--muted);font-size:12px}
-  .msg{white-space:pre-wrap;word-wrap:break-word}
-  .ts{font-size:12px;color:var(--muted);margin-top:6px}
-  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
-  .small{font-size:12px}
-  .pill{display:inline-flex;gap:6px;align-items:center;background:#0b1220;border:1px solid #1f2937;border-radius:999px;padding:6px 10px}
-  .danger{color:var(--danger)}
-  .footer{margin:18px 0 12px;text-align:center}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="header">
-      <h1>Alumni Anonymous Thread</h1>
-      <div class="pill">
-        <span class="small">Ephemeral window:</span>
-        <select id="hours">
-          <option value="4" selected>Last 4h</option>
-          <option value="2">Last 2h</option>
-          <option value="8">Last 8h</option>
-          <option value="24">Last 24h</option>
-        </select>
-        <button id="refreshBtn" class="small secondary">Refresh</button>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Alumni Anonymous Thread</title>
+    <style>
+      :root{--bg:#0f172a;--panel:#111827;--text:#e5e7eb;--muted:#94a3b8;--brand:#14b8a6;}
+      *{box-sizing:border-box}
+      body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Inter,-apple-system}
+      .wrap{max-width:720px;margin:24px auto;padding:0 16px}
+      h1{font-size:20px;margin:0 0 10px}
+      .card{background:var(--panel);border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 0 rgba(255,255,255,0.03) inset}
+      textarea{width:100%;min-height:96px;border:1px solid #1f2937;background:#0b1220;color:var(--text);border-radius:8px;padding:12px;outline:none}
+      button{background:var(--brand);color:#062925;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+      .muted{color:var(--muted);font-size:12px}
+      .msg{white-space:pre-wrap;word-wrap:break-word}
+      .ts{font-size:12px;color:var(--muted);margin-top:6px}
+      .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+      .footer{margin:18px 0 12px;text-align:center}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <h1>Alumni Anonymous Thread</h1>
+        <span class="muted" id="lastSync">Auto refreshing…</span>
       </div>
-    </div>
 
-    <div class="card">
-      <textarea id="message" placeholder="Write your message… No names/contacts/photos. Be respectful and factual."></textarea>
-      <div class="row">
-        
-        
-        <button id="postBtn">Post Anonymously</button>
+      <div class="card">
+        <textarea id="message" placeholder="Write your message… (no names/contacts/photos)"></textarea>
+        <div class="row">
+          <button id="postBtn">Post Anonymously</button>
+          <span id="status" class="muted"></span>
+        </div>
       </div>
-      <div class="muted">No authentication. Posts are public. Don’t include PII. Max 2000 chars.</div>
-      <div id="status" class="muted" style="margin-top:8px"></div>
+
+      <div id="list"></div>
+
+      <div class="footer muted">This wall auto-refreshes. Be respectful.</div>
     </div>
 
-    <div id="list"></div>
+    <script>
+      function note(t){ document.getElementById('status').textContent = t; }
+      function setSync(){ document.getElementById('lastSync').textContent = 'Updated ' + new Date().toLocaleTimeString(); }
 
-    <div class="footer muted">
-      Tip: This forum is designed to be temporary. Only messages within the selected window are shown on this page.
-    </div>
-  </div>
+      function renderList(items){
+        const list = document.getElementById('list');
+        list.innerHTML = '';
+        if(!Array.isArray(items) || items.length===0){
+          const empty = document.createElement('div');
+          empty.className='muted';
+          empty.textContent = 'No messages yet.';
+          list.appendChild(empty);
+          return;
+        }
+        items.sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+        items.forEach(m=>{
+          const card = document.createElement('div');
+          card.className='card';
+          const msg = document.createElement('div');
+          msg.className='msg';
+          msg.textContent = m.message;
+          const ts = document.createElement('div');
+          ts.className='ts';
+          ts.textContent = new Date(m.timestamp).toLocaleString();
+          card.appendChild(msg);
+          card.appendChild(ts);
+          list.appendChild(card);
+        });
+      }
 
-<script>
-// ======= CONFIG =======
-const API = 'https://script.google.com/macros/s/AKfycbw1Fg0vyZm_G-y38S1qXpHkcLVw_dTqVP_rupPXBIHjR7LrEbnn9lqzt1e1NndJ92Y72Q/exec'; // Replace after Apps Script deploy
-// ======================
+      // Load messages from server (same origin via google.script.run)
+      function load(){
+        google.script.run.withSuccessHandler(function(items){
+          renderList(items || []);
+          setSync();
+        }).getMessages();
+      }
 
+      document.getElementById('postBtn').addEventListener('click', function(){
+        const el = document.getElementById('message');
+        const message = el.value.trim();
+        if(!message){ return note('Message is empty.'); }
+        if(message.length > 2000){ return note('Message too long (2000).'); }
+        note('Posting…');
 
-
-// Load messages (optionally filter by since=ISO)
-async function load() {
-  try{
-    note('');
-    const hoursSel = document.getElementById('hours');
-    const hrs = Number(hoursSel.value || '4');
-    const sinceISO = new Date(Date.now() - hrs*60*60*1000).toISOString();
-    const url = API + '?since=' + encodeURIComponent(sinceISO); // backend supports ?since
-    const res = await fetch(url, { cache:'no-store' });
-    const data = await res.json();
-    if(!data.ok) throw new Error(data.error||'Load failed');
-    const list = document.getElementById('list');
-    list.innerHTML = '';
-    // Backend may already filter; the UI will also filter for safety
-    const boundary = Date.now() - hrs*60*60*1000;
-    data.data
-      .filter(m => new Date(m.timestamp).getTime() >= boundary)
-      .sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp))
-      .forEach(m=>{
-        const card = document.createElement('div');
-        card.className='card';
-        const msg = document.createElement('div');
-        msg.className='msg';
-        msg.textContent = m.message;
-        const ts = document.createElement('div');
-        ts.className='ts';
-        ts.textContent = new Date(m.timestamp).toLocaleString();
-        card.appendChild(msg);
-        card.appendChild(ts);
-        list.appendChild(card);
+        // Post via server-side (no CORS)
+        google.script.run.withSuccessHandler(function(res){
+          // Optimistic clear & update
+          el.value = '';
+          note('Posted!');
+          load(); // refresh immediately after posting
+        }).withFailureHandler(function(err){
+          note('Failed: ' + (err && err.message ? err.message : 'error'));
+        }).postMessage(message);
       });
-    if(!list.children.length){
-      const empty = document.createElement('div');
-      empty.className = 'muted';
-      empty.textContent = 'No messages in this window yet.';
-      list.appendChild(empty);
-    }
-  }catch(e){
-    note('Failed to load messages.');
-  }
-}
-load();
 
-document.getElementById('refreshBtn').addEventListener('click', load);
-document.getElementById('hours').addEventListener('change', load);
-
-
-document.getElementById('postBtn').addEventListener('click', async ()=>{
-  const messageEl = document.getElementById('message');
-  const list = document.getElementById('list');
-  const message = messageEl.value.trim();
-  if(!message){ return note('Message is empty.'); }
-  if(message.length > 2000){ return note('Message too long (2000 char max).'); }
-  note('Posting…');
-  try{
-    const res = await fetch(API, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message })
-    });
-    const data = await res.json();
-    if(!data.ok) throw new Error(data.error||'Post failed');
-
-    // Optimistic add: show immediately
-    // Remove "No messages..." placeholder if present
-    if(list.children.length === 1 && list.children[0].classList.contains('muted')){
-      list.innerHTML = '';
-    }
-    const card = document.createElement('div');
-    card.className='card';
-    const msg = document.createElement('div');
-    msg.className='msg';
-    msg.textContent = message;
-    const ts = document.createElement('div');
-    ts.className='ts';
-    ts.textContent = new Date().toLocaleString();
-    card.appendChild(msg);
-    card.appendChild(ts);
-    list.appendChild(card);
-
-    // Clear input and status
-    messageEl.value = '';
-    note('Posted!');
-
-    // (Optional) Scroll to the newest message
-    card.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }catch(e){
-    note('Failed to post.');
-  }
-});
-    const data = await res.json();
-    if(!data.ok) throw new Error(data.error||'Post failed');
-    document.getElementById('message').value = '';
-    
-    note('Posted!');
-    load();
-  }catch(e){
-    note('Failed to post.');
-  }
-});
-
-function note(t){ document.getElementById('status').textContent = t; }
-</script>
-</body>
+      // Initial load + auto refresh every 6 seconds
+      load();
+      setInterval(load, 6000);
+    </script>
+  </body>
 </html>
